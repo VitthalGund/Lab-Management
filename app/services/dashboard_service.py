@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, extract
 from datetime import datetime, timedelta
 
@@ -29,7 +29,6 @@ def get_lab_dashboard_stats(db: Session, lab_id: int) -> LabDashboardStats:
     """
     # --- 1. KPI Calculations ---
 
-    # Total active students in the lab
     total_students = (
         db.query(func.count(StudentEnrollment.student_user_id.distinct()))
         .join(EnrollmentCohort)
@@ -37,14 +36,12 @@ def get_lab_dashboard_stats(db: Session, lab_id: int) -> LabDashboardStats:
         .scalar()
     )
 
-    # Total teachers assigned to the lab
     total_teachers = (
         db.query(func.count(TeacherProfile.user_id))
         .filter(TeacherProfile.lab_id == lab_id)
         .scalar()
     )
 
-    # Total projects submitted from the lab
     total_projects = (
         db.query(func.count(Project.id))
         .join(EnrollmentCohort)
@@ -52,7 +49,6 @@ def get_lab_dashboard_stats(db: Session, lab_id: int) -> LabDashboardStats:
         .scalar()
     )
 
-    # Total stars received by projects in the lab
     total_stars = (
         db.query(func.count(ProjectStar.id))
         .join(Project)
@@ -70,7 +66,6 @@ def get_lab_dashboard_stats(db: Session, lab_id: int) -> LabDashboardStats:
 
     # --- 2. Data for Charts ---
 
-    # Student distribution by section (CFLC vs GROK)
     student_dist_query = (
         db.query(
             EnrollmentCohort.section,
@@ -85,7 +80,8 @@ def get_lab_dashboard_stats(db: Session, lab_id: int) -> LabDashboardStats:
         ChartDataPoint(name=row[0].value, value=row[1]) for row in student_dist_query
     ]
 
-    # GROK specialization breakdown
+    # This query correctly filters for GROK sections. If it returns an empty array,
+    # it means no students are currently enrolled in a GROK cohort for this lab.
     grok_spec_query = (
         db.query(
             EnrollmentCohort.grok_specialization,
@@ -105,16 +101,23 @@ def get_lab_dashboard_stats(db: Session, lab_id: int) -> LabDashboardStats:
         if row[0]
     ]
 
-    # Student performance status distribution
+    # FIX: The original query was too complex. This revised approach is more reliable.
+    # 1. Get all unique student IDs in the lab.
+    students_in_lab_subquery = (
+        db.query(StudentEnrollment.student_user_id.distinct())
+        .join(EnrollmentCohort)
+        .filter(EnrollmentCohort.lab_id == lab_id)
+        .subquery()
+    )
+
+    # 2. Query the StudentProfile table for those students and group by status.
     perf_dist_query = (
         db.query(StudentProfile.performance_status, func.count(StudentProfile.user_id))
-        .join(User)
-        .join(StudentEnrollment, User.id == StudentEnrollment.student_user_id)
-        .join(EnrollmentCohort, StudentEnrollment.cohort_id == EnrollmentCohort.id)
-        .filter(EnrollmentCohort.lab_id == lab_id)
+        .filter(StudentProfile.user_id.in_(students_in_lab_subquery))
         .group_by(StudentProfile.performance_status)
         .all()
     )
+
     performance_distribution = [
         ChartDataPoint(name=row[0].value, value=row[1])
         for row in perf_dist_query
@@ -143,7 +146,6 @@ def get_lab_dashboard_stats(db: Session, lab_id: int) -> LabDashboardStats:
 
     # --- 4. Leaderboards (Top 5) ---
 
-    # Top students (by stars + projects)
     top_students_query = (
         db.query(
             User.id,
@@ -151,11 +153,10 @@ def get_lab_dashboard_stats(db: Session, lab_id: int) -> LabDashboardStats:
             func.count(func.distinct(Project.id)).label("project_count"),
             func.count(func.distinct(ProjectStar.id)).label("star_count"),
         )
-        .select_from(User)
-        .join(StudentEnrollment, User.id == StudentEnrollment.student_user_id)
-        .join(EnrollmentCohort, StudentEnrollment.cohort_id == EnrollmentCohort.id)
-        .outerjoin(Project, User.id == Project.student_user_id)
-        .outerjoin(ProjectStar, Project.id == ProjectStar.project_id)
+        .join(User.enrollments)
+        .join(StudentEnrollment.cohort)
+        .outerjoin(User.projects_submitted)
+        .outerjoin(Project.stars)
         .filter(EnrollmentCohort.lab_id == lab_id, User.role == UserRole.student)
         .group_by(User.id, "full_name")
         .order_by(
@@ -165,6 +166,7 @@ def get_lab_dashboard_stats(db: Session, lab_id: int) -> LabDashboardStats:
         .limit(5)
         .all()
     )
+
     top_students = [
         TopStudent(
             student_id=row[0],
@@ -175,7 +177,6 @@ def get_lab_dashboard_stats(db: Session, lab_id: int) -> LabDashboardStats:
         for row in top_students_query
     ]
 
-    # Top projects (by stars)
     top_projects_query = (
         db.query(
             Project.id,
@@ -183,15 +184,16 @@ def get_lab_dashboard_stats(db: Session, lab_id: int) -> LabDashboardStats:
             (User.name + " " + User.last_name).label("student_name"),
             func.count(ProjectStar.id).label("star_count"),
         )
-        .join(EnrollmentCohort)
-        .join(User, Project.student_user_id == User.id)
-        .outerjoin(ProjectStar, Project.id == ProjectStar.project_id)
+        .join(Project.cohort)
+        .join(Project.student)
+        .outerjoin(Project.stars)
         .filter(EnrollmentCohort.lab_id == lab_id)
-        .group_by(Project.id, Project.project_name, "student_name")
+        .group_by(Project.id, User.name, User.last_name)
         .order_by(func.count(ProjectStar.id).desc())
         .limit(5)
         .all()
     )
+
     top_projects = [
         TopProject(
             project_id=row[0],

@@ -2,11 +2,12 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 
 from app.models.user import User, UserRole, StudentProfile
+from app.schemas.student import StudentCreate, StudentUpdate
 from app.models.enrollment import (
     StudentEnrollment,
     EnrollmentCohort,
+    LabSection,
 )  # Import enrollment models
-from app.schemas.student import StudentCreate, StudentUpdate
 from app.core.security import get_password_hash
 
 
@@ -70,19 +71,19 @@ def bulk_create_students_in_lab(
     return new_users
 
 
-def get_students_by_lab(db: Session, lab_id: int) -> List[User]:
-    """
-    FIX: Retrieves all students who are enrolled in any cohort belonging to the specified lab.
-    """
-    return (
-        db.query(User)
-        .options(joinedload(User.student_profile))
-        .join(StudentEnrollment, User.id == StudentEnrollment.student_user_id)
-        .join(EnrollmentCohort, StudentEnrollment.cohort_id == EnrollmentCohort.id)
-        .filter(EnrollmentCohort.lab_id == lab_id)
-        .distinct(User.id)
-        .all()
-    )
+# def get_students_by_lab(db: Session, lab_id: int) -> List[User]:
+#     """
+#     FIX: Retrieves all students who are enrolled in any cohort belonging to the specified lab.
+#     """
+#     return (
+#         db.query(User)
+#         .options(joinedload(User.student_profile))
+#         .join(StudentEnrollment, User.id == StudentEnrollment.student_user_id)
+#         .join(EnrollmentCohort, StudentEnrollment.cohort_id == EnrollmentCohort.id)
+#         .filter(EnrollmentCohort.lab_id == lab_id)
+#         .distinct(User.id)
+#         .all()
+#     )
 
 
 def update_student(
@@ -134,3 +135,56 @@ def update_student(
     db.commit()
     db.refresh(db_user)
     return db_user
+
+
+def get_students_by_lab(
+    db: Session,
+    lab_id: int,
+    standard: Optional[int] = None,
+    section: Optional[LabSection] = None,
+) -> List[User]:
+    """
+    Retrieves students in a lab, with optional filters for standard and section.
+    """
+    query = (
+        db.query(User)
+        .options(joinedload(User.student_profile))
+        .join(StudentEnrollment, User.id == StudentEnrollment.student_user_id)
+        .join(EnrollmentCohort, StudentEnrollment.cohort_id == EnrollmentCohort.id)
+        .filter(EnrollmentCohort.lab_id == lab_id)
+    )
+
+    if standard:
+        query = query.filter(EnrollmentCohort.standard == standard)
+    if section:
+        query = query.filter(EnrollmentCohort.section == section)
+
+    return query.distinct(User.id).all()
+
+
+def search_students(
+    db: Session, school_id: Optional[int] = None, lab_id: Optional[int] = None
+) -> List[User]:
+    """
+    Searches for students across the system with optional filters.
+    """
+    query = (
+        db.query(User)
+        .options(joinedload(User.student_profile))
+        .filter(User.role == UserRole.student)
+    )
+
+    if lab_id:
+        query = (
+            query.join(StudentEnrollment)
+            .join(EnrollmentCohort)
+            .filter(EnrollmentCohort.lab_id == lab_id)
+        )
+    elif school_id:
+        query = (
+            query.join(StudentEnrollment)
+            .join(EnrollmentCohort)
+            .filter(EnrollmentCohort.lab.has(school_id=school_id))
+        )
+
+    return query.distinct(User.id).all()

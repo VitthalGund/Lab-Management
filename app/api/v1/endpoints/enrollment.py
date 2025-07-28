@@ -7,11 +7,13 @@ from app.schemas.enrollment import (
     EnrollmentCohortCreate,
     StudentEnrollmentCreate,
     EnrollmentCohortUpdate,
+    StudentEnrollmentDetails,
+    TeacherAssignmentDetails,
 )
 from app.services import enrollment_service
 from app.api.dependencies import get_db, get_current_user
 from app.models.user import User, UserRole
-from app.models.enrollment import EnrollmentCohort
+from app.models.enrollment import EnrollmentCohort, StudentEnrollment
 
 router = APIRouter()
 
@@ -102,3 +104,55 @@ def enroll_students(
         return {"message": "Students enrolled successfully"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/me/", response_model=List[StudentEnrollmentDetails])
+def read_my_enrollments(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """Get all cohort enrollments for the current student."""
+    if current_user.role != UserRole.student:
+        raise HTTPException(
+            status_code=403, detail="This endpoint is for students only"
+        )
+    return enrollment_service.get_student_enrollments(db, student_id=current_user.id)
+
+
+@router.get("/teachers/me/assignments/", response_model=List[TeacherAssignmentDetails])
+def read_my_assignments(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """Get all cohort assignments for the current teacher/lab head."""
+    if current_user.role not in [UserRole.teacher, UserRole.lab_head]:
+        raise HTTPException(
+            status_code=403, detail="This endpoint is for teachers and lab heads only"
+        )
+    return enrollment_service.get_teacher_assignments(db, teacher_id=current_user.id)
+
+
+@router.delete("/{enrollment_id}")
+def unenroll_a_student(
+    enrollment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Un-enroll a student from a cohort.
+    - **Permissions**: admin, sub_admin, or a lab_head/teacher from the cohort's lab.
+    """
+    enrollment = (
+        db.query(StudentEnrollment)
+        .join(EnrollmentCohort)
+        .filter(StudentEnrollment.id == enrollment_id)
+        .first()
+    )
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Enrollment record not found")
+
+    if not check_lab_permission(current_user, enrollment.cohort.lab_id):
+        raise HTTPException(
+            status_code=403, detail="Not authorized to manage this enrollment"
+        )
+
+    enrollment_service.unenroll_student(db, enrollment_id=enrollment_id)
+    return {"message": "Student unenrolled successfully"}

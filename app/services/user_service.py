@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from app.models.user import User
-from app.schemas.user import UserCreate
-from app.core.security import get_password_hash
+from app.schemas.user import UserCreate, UserMeUpdate, UserPasswordChange
+from app.core.security import get_password_hash, verify_password
 
 
 def get_user_by_mobile(db: Session, mobile_number: str) -> User | None:
@@ -24,3 +24,24 @@ def create_user(db: Session, user: UserCreate) -> User:
     db.commit()
     db.refresh(db_user)
     return db_user
+
+
+def update_me(db: Session, user: User, data: UserMeUpdate) -> User:
+    """Updates the current user's profile."""
+    update_data = data.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(user, key, value)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def change_password(db: Session, user: User, data: UserPasswordChange) -> bool:
+    """Changes the current user's password."""
+    if not verify_password(data.current_password, user.password_hash):
+        return False
+    user.password_hash = get_password_hash(data.new_password)
+    db.add(user)
+    db.commit()
+    return True

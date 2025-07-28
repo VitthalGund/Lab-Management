@@ -139,3 +139,29 @@ def star_a_project(
         return {"message": "Project starred successfully"}
     else:
         return {"message": "Project unstarred successfully"}
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_a_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Delete a project.
+    - **Permissions**: The student who owns the project, or an admin/sub-admin.
+    """
+    db_project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+    if not db_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    is_owner = db_project.student_user_id == current_user.id
+    is_admin = current_user.role in [UserRole.admin, UserRole.sub_admin]
+
+    if not is_owner and not is_admin:
+        raise HTTPException(
+            status_code=403, detail="Not authorized to delete this project"
+        )
+
+    project_service.delete_project(db, project_id=project_id)
+    return None

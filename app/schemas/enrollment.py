@@ -3,6 +3,7 @@ from typing import Optional, List
 from datetime import date
 
 from app.models.enrollment import LabSection, GrokSpecialization
+from .user import User
 
 
 class EnrollmentCohortCreate(BaseModel):
@@ -21,14 +22,13 @@ class EnrollmentCohort(EnrollmentCohortCreate):
     created_by_user_id: int
 
     class Config:
-        from_attributes = True  # FIX: Renamed from orm_mode
+        from_attributes = True
 
 
 class StudentEnrollmentCreate(BaseModel):
     student_user_ids: List[int]
 
 
-# --- Schema for Updating a Cohort ---
 class EnrollmentCohortUpdate(BaseModel):
     academic_year: Optional[int] = None
     section: Optional[LabSection] = None
@@ -37,3 +37,23 @@ class EnrollmentCohortUpdate(BaseModel):
     semester_end_date: Optional[date] = None
     batch_name: Optional[str] = None
     grok_specialization: Optional[GrokSpecialization] = None
+
+
+class StudentEnrollmentDetails(BaseModel):
+    """Detailed view of a student's enrollment."""
+
+    id: int
+    cohort: EnrollmentCohort
+
+    class Config:
+        from_attributes = True
+
+
+class TeacherAssignmentDetails(BaseModel):
+    """Detailed view of a teacher's assignment."""
+
+    id: int
+    cohort: EnrollmentCohort
+
+    class Config:
+        from_attributes = True

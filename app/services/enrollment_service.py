@@ -1,9 +1,9 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 
-from app.models.enrollment import EnrollmentCohort, StudentEnrollment
 from app.models.user import User, UserRole
 from app.schemas.enrollment import EnrollmentCohortCreate, EnrollmentCohortUpdate
+from app.models.enrollment import EnrollmentCohort, StudentEnrollment, CohortTeacher
 
 
 def create_cohort_in_lab(
@@ -96,3 +96,37 @@ def update_cohort(
     db.commit()
     db.refresh(db_cohort)
     return db_cohort
+
+
+def get_student_enrollments(db: Session, student_id: int) -> List[StudentEnrollment]:
+    """Retrieves all enrollments for a specific student."""
+    return (
+        db.query(StudentEnrollment)
+        .options(joinedload(StudentEnrollment.cohort))
+        .filter(StudentEnrollment.student_user_id == student_id)
+        .all()
+    )
+
+
+def get_teacher_assignments(db: Session, teacher_id: int) -> List[CohortTeacher]:
+    """Retrieves all cohort assignments for a specific teacher."""
+    return (
+        db.query(CohortTeacher)
+        .options(joinedload(CohortTeacher.cohort))
+        .filter(CohortTeacher.teacher_user_id == teacher_id)
+        .all()
+    )
+
+
+def unenroll_student(db: Session, enrollment_id: int) -> Optional[StudentEnrollment]:
+    """Un-enrolls a student by deleting the enrollment record."""
+    enrollment = (
+        db.query(StudentEnrollment)
+        .filter(StudentEnrollment.id == enrollment_id)
+        .first()
+    )
+    if not enrollment:
+        return None
+    db.delete(enrollment)
+    db.commit()
+    return enrollment

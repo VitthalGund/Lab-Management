@@ -1,10 +1,9 @@
-from sqlalchemy.orm import Session, joinedload, subqueryload
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List, Optional
 
 from app.models.project import Project, ProjectStar
 from app.models.enrollment import StudentEnrollment
-from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectUpdate
 
 
@@ -98,3 +97,13 @@ def update_project(
     db.commit()
     db.refresh(db_project)
     return db_project
+
+
+def delete_project(db: Session, project_id: int) -> Optional[Project]:
+    """Deletes a project from the database."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        return None
+    db.delete(project)
+    db.commit()
+    return project
