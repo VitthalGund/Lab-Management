@@ -45,3 +45,20 @@ def change_password(db: Session, user: User, data: UserPasswordChange) -> bool:
     db.add(user)
     db.commit()
     return True
+
+
+def get_user_by_id(db: Session, user_id: int) -> User | None:
+    """Fetches a user by their ID."""
+    return db.query(User).filter(User.id == user_id).first()
+
+
+def reset_user_password(db: Session, user: User, new_password: str) -> User:
+    """
+    Forcefully resets a user's password by an admin or superior.
+    This function does not check for the old password.
+    """
+    user.password_hash = get_password_hash(new_password)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user

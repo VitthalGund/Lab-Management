@@ -3,7 +3,6 @@ from typing import Optional
 from app.models.user import UserRole
 
 
-# --- Existing Schemas ---
 class UserBase(BaseModel):
     name: str
     last_name: str
@@ -36,4 +35,10 @@ class UserPasswordChange(BaseModel):
     """Schema for changing a password."""
 
     current_password: str
+    new_password: str
+
+
+class AdminPasswordReset(BaseModel):
+    """Schema for an admin or superior resetting a user's password."""
+
     new_password: str
