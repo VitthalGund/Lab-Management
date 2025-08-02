@@ -11,6 +11,7 @@ from app.api.v1.endpoints import (
     mark,
     report,
     user,
+    dashboard_admin,
 )
 
 api_router = APIRouter()
@@ -21,6 +22,9 @@ api_router.include_router(user.router, prefix="/users", tags=["Users"])
 
 # Dashboards and Reports
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
+api_router.include_router(
+    dashboard_admin.router, prefix="/dashboard/admin", tags=["Dashboard-admin"]
+)
 api_router.include_router(report.router, prefix="/reports", tags=["Reports"])
 
 # Core Data Management
