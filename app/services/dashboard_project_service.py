@@ -1,7 +1,7 @@
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.models import Project, ProjectStar
+from app.models import Project, ProjectStar, User
 from app.schemas.dashboard_project import ProjectDashboardStats
 from app.schemas.project import Project as ProjectSchema
 
@@ -13,9 +13,9 @@ def get_project_dashboard_stats(db: Session) -> ProjectDashboardStats:
     # 1. Top Rated Projects (Top 10 by stars)
     top_rated_query = (
         db.query(Project, func.count(ProjectStar.id).label("star_count"))
-        .outerjoin(ProjectStar, Project.id == ProjectStar.project_id)
-        .group_by(Project.id)
-        .options(joinedload(Project.student))
+        .outerjoin(Project.stars)
+        .join(Project.student)
+        .group_by(Project.id, User.id)
         .order_by(func.count(ProjectStar.id).desc())
         .limit(10)
         .all()
@@ -39,9 +39,9 @@ def get_project_dashboard_stats(db: Session) -> ProjectDashboardStats:
     # 2. Most Recent Projects (Top 10)
     most_recent_query = (
         db.query(Project, func.count(ProjectStar.id).label("star_count"))
-        .outerjoin(ProjectStar, Project.id == ProjectStar.project_id)
-        .group_by(Project.id)
-        .options(joinedload(Project.student))
+        .outerjoin(Project.stars)
+        .join(Project.student)
+        .group_by(Project.id, User.id)
         .order_by(Project.submission_date.desc())
         .limit(10)
         .all()

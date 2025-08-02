@@ -15,6 +15,14 @@ from app.models.enrollment import StudentEnrollment, EnrollmentCohort
 router = APIRouter()
 
 
+@router.get("/me/", response_model=UserSchema)
+def read_current_user(current_user: User = Depends(get_current_user)):
+    """
+    Get the profile of the currently authenticated user.
+    """
+    return current_user
+
+
 @router.put("/me/", response_model=UserSchema)
 def update_current_user(
     data: UserMeUpdate,

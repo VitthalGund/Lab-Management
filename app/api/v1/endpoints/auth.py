@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from app.schemas.auth import Token
+from app.schemas.auth import Token, UserLogin
 from app.schemas.user import UserCreate, User as UserSchema
 from app.services import user_service
 from app.core.security import create_access_token, verify_password
@@ -17,14 +17,16 @@ admin_permission = RoleChecker([UserRole.admin])
 
 @router.post("/login/token", response_model=Token)
 def login_for_access_token(
-    db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
+    # db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
+    login_data: UserLogin,  # This correctly expects a JSON body matching the UserLogin schema
+    db: Session = Depends(get_db),
 ):
     """
     Authenticate user and return a JWT token.
-    Username is the user's mobile number.
+    Accepts a JSON body.
     """
-    user = user_service.get_user_by_mobile(db, mobile_number=form_data.username)
-    if not user or not verify_password(form_data.password, user.password_hash):
+    user = user_service.get_user_by_mobile(db, mobile_number=login_data.mobile_number)
+    if not user or not verify_password(login_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect mobile number or password",

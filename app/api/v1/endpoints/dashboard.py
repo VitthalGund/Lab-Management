@@ -12,7 +12,7 @@ from app.services import (
 )
 
 # Import new dependencies
-from app.api.dependencies import get_db, get_current_user, RoleChecker
+from app.api.dependencies import get_db, RoleChecker
 from app.models.user import User, UserRole
 
 router = APIRouter()
