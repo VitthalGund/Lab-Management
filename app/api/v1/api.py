@@ -12,6 +12,7 @@ from app.api.v1.endpoints import (
     report,
     user,
     dashboard_admin,
+    leaderboard,
 )
 
 api_router = APIRouter()
@@ -25,6 +26,9 @@ api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboar
 api_router.include_router(
     dashboard_admin.router, prefix="/dashboard/admin", tags=["Dashboard-admin"]
 )
+api_router.include_router(
+    leaderboard.router, prefix="/leaderboards", tags=["Leaderboards"]
+)  # Add leaderboard router
 api_router.include_router(report.router, prefix="/reports", tags=["Reports"])
 
 # Core Data Management

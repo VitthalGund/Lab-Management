@@ -9,7 +9,8 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__))))
 # --- End Setup ---
 
-from app.db.session import SessionLocal
+from app.db.base import Base
+from app.db.session import SessionLocal, engine
 from app.services import (
     user_service,
     school_service,
@@ -46,6 +47,22 @@ STARS_PER_PROJECT_RANGE = (0, 15)
 
 # Initialize Faker
 fake = Faker("en_IN")  # Use Indian locale for more realistic names/addresses
+
+
+def clear_all_data(db: Session):
+    """Deletes all data from all tables."""
+    print("\n⚠️ WARNING: This will delete ALL data from the database.")
+    confirmation = input("Are you sure you want to continue? (yes/no): ")
+    if confirmation.lower() != "yes":
+        print("Operation cancelled.")
+        return False
+
+    print("Deleting all data...")
+    for table in reversed(Base.metadata.sorted_tables):
+        db.execute(table.delete())
+    db.commit()
+    print("All data has been deleted.")
+    return True
 
 
 def seed_data(db: Session):
@@ -246,6 +263,10 @@ def seed_data(db: Session):
 if __name__ == "__main__":
     db = SessionLocal()
     try:
-        seed_data(db)
+        if len(sys.argv) > 1 and sys.argv[1] == "--clear":
+            if clear_all_data(db):
+                seed_data(db)
+        else:
+            seed_data(db)
     finally:
         db.close()
