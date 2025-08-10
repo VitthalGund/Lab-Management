@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from app.models.user import User
-from app.schemas.user import UserCreate, UserMeUpdate, UserPasswordChange
+from app.schemas.user import UserCreate, UserMeUpdate, UserPasswordChange, UserUpdate
 from app.core.security import get_password_hash, verify_password
 
 
@@ -61,4 +61,24 @@ def reset_user_password(db: Session, user: User, new_password: str) -> User:
     db.add(user)
     db.commit()
     db.refresh(user)
+    return user
+
+
+def update_user_by_admin(db: Session, user: User, data: UserUpdate) -> User:
+    """Updates a user's details by an admin."""
+    update_data = data.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(user, key, value)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def delete_user_by_id(db: Session, user_id: int) -> User | None:
+    """Deletes a user by their ID."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        db.delete(user)
+        db.commit()
     return user

@@ -42,3 +42,11 @@ class AdminPasswordReset(BaseModel):
     """Schema for an admin or superior resetting a user's password."""
 
     new_password: str
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    last_name: Optional[str] = None
+    mobile_number: Optional[str] = None
+    email: Optional[EmailStr] = None
+    role: Optional[UserRole] = None

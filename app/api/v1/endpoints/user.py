@@ -1,18 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from typing import List
 
 from app.schemas.user import (
     User as UserSchema,
     UserMeUpdate,
     UserPasswordChange,
     AdminPasswordReset,
+    UserUpdate,
 )
 from app.services import user_service
-from app.api.dependencies import get_db, get_current_user
+from app.api.dependencies import get_db, get_current_user, RoleChecker
 from app.models.user import User, UserRole
 from app.models.enrollment import StudentEnrollment, EnrollmentCohort
 
 router = APIRouter()
+admin_permission = RoleChecker([UserRole.admin, UserRole.sub_admin])
 
 
 @router.get("/me/", response_model=UserSchema)
@@ -143,3 +146,43 @@ def reset_password_by_superior(
     return {
         "message": f"Password for user {target_user.name} has been reset successfully."
     }
+
+
+@router.get("/", response_model=List[UserSchema])
+def read_all_users(
+    db: Session = Depends(get_db), current_user: User = Depends(admin_permission)
+):
+    """Retrieve all users. Admin only."""
+    # This requires a new service function, for now we can do a simple query
+    return db.query(User).all()
+
+
+@router.put("/{user_id}", response_model=UserSchema)
+def update_user_details(
+    user_id: int,
+    data: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(admin_permission),
+):
+    """Update a user's details. Admin only."""
+    user_to_update = user_service.get_user_by_id(db, user_id=user_id)
+    if not user_to_update:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user_service.update_user_by_admin(db, user=user_to_update, data=data)
+
+
+@router.delete("/{user_id}", response_model=UserSchema)
+def delete_a_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(admin_permission),
+):
+    """Delete a user. Admin only."""
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=400, detail="Admins cannot delete their own account."
+        )
+    deleted_user = user_service.delete_user_by_id(db, user_id=user_id)
+    if not deleted_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return deleted_user
