@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy.orm import Session, joinedload
+from typing import List, Optional
 
 from app.schemas.user import (
     User as UserSchema,
@@ -11,7 +11,8 @@ from app.schemas.user import (
 )
 from app.services import user_service
 from app.api.dependencies import get_db, get_current_user, RoleChecker
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, TeacherProfile
+from app.models.lab import Lab
 from app.models.enrollment import StudentEnrollment, EnrollmentCohort
 
 router = APIRouter()
@@ -186,3 +187,68 @@ def delete_a_user(
     if not deleted_user:
         raise HTTPException(status_code=404, detail="User not found")
     return deleted_user
+
+
+@router.get("/search/", response_model=List[UserSchema])
+def search_for_users(
+    role: Optional[UserRole] = None,
+    school_id: Optional[int] = None,
+    lab_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Search for users with advanced filters.
+    Permissions are checked based on the current user's role.
+    """
+    query = db.query(User).options(
+        joinedload(User.teacher_profile), joinedload(User.student_profile)
+    )
+
+    if role:
+        query = query.filter(User.role == role)
+    if lab_id:
+        if role in [UserRole.teacher, UserRole.lab_head]:
+            query = query.join(TeacherProfile).filter(TeacherProfile.lab_id == lab_id)
+        elif role == UserRole.student:
+            query = (
+                query.join(StudentEnrollment)
+                .join(EnrollmentCohort)
+                .filter(EnrollmentCohort.lab_id == lab_id)
+            )
+    elif school_id:
+        if role in [UserRole.teacher, UserRole.lab_head]:
+            query = (
+                query.join(TeacherProfile).join(Lab).filter(Lab.school_id == school_id)
+            )
+        elif role == UserRole.student:
+            query = (
+                query.join(StudentEnrollment)
+                .join(EnrollmentCohort)
+                .join(Lab)
+                .filter(Lab.school_id == school_id)
+            )
+
+    if current_user.role not in [UserRole.admin, UserRole.sub_admin]:
+        user_lab_id = (
+            current_user.teacher_profile.lab_id
+            if current_user.teacher_profile
+            else None
+        )
+        if not user_lab_id:
+            raise HTTPException(
+                status_code=403, detail="You are not assigned to a lab."
+            )
+
+        if role in [UserRole.teacher, UserRole.lab_head]:
+            query = query.join(TeacherProfile).filter(
+                TeacherProfile.lab_id == user_lab_id
+            )
+        elif role == UserRole.student:
+            query = (
+                query.join(StudentEnrollment)
+                .join(EnrollmentCohort)
+                .filter(EnrollmentCohort.lab_id == user_lab_id)
+            )
+
+    return query.distinct(User.id).all()
