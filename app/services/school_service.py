@@ -61,3 +61,13 @@ def delete_school(db: Session, school_id: int) -> Optional[School]:
     db.delete(db_school)
     db.commit()
     return db_school
+
+
+def get_all_schools(db: Session, skip: int = 0, limit: int = 10, search: str = None):
+    query = db.query(School)
+    if search:
+        query = query.filter(School.name.ilike(f"%{search}%"))
+
+    total = query.count()
+    schools = query.offset(skip).limit(limit).all()
+    return schools, total

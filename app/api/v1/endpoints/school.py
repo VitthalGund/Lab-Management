@@ -1,8 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import Optional
 
-from app.schemas.school import School, SchoolCreate, SchoolUpdate
+from app.schemas.school import (
+    School,
+    SchoolCreate,
+    SchoolUpdate,
+    PaginatedSchoolsResponse,
+)
 from app.services import school_service
 from app.api.dependencies import get_db, RoleChecker
 from app.models.user import User, UserRole
@@ -26,19 +31,21 @@ def create_school(
     return school_service.create_school(db=db, school=school)
 
 
-@router.get("/", response_model=List[School])
+@router.get("/", response_model=PaginatedSchoolsResponse)
 def read_schools(
-    skip: int = 0,
-    limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: User = Depends(admin_permission),
+    skip: int = 0,
+    limit: int = 10,
+    search: Optional[str] = None,
+    current_user: User = Depends(RoleChecker([UserRole.admin, UserRole.sub_admin])),
 ):
     """
-    Retrieve a list of all schools.
-    - **Permissions**: admin, sub_admin
+    Retrieve all schools with pagination and search.
     """
-    schools = school_service.get_schools(db, skip=skip, limit=limit)
-    return schools
+    schools, total = school_service.get_all_schools(
+        db, skip=skip, limit=limit, search=search
+    )
+    return {"schools": schools, "total": total}
 
 
 @router.get("/{school_id}", response_model=School)

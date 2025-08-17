@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 
 # --- Base Schema ---
@@ -34,3 +34,8 @@ class School(SchoolBase):
 
     class Config:
         from_attributes = True
+
+
+class PaginatedSchoolsResponse(BaseModel):
+    schools: List[School]
+    total: int
