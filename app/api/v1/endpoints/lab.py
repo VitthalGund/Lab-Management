@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import Optional
 
-from app.schemas.lab import Lab, LabCreate, LabUpdate
+from app.schemas.lab import Lab, LabCreate, LabUpdate, PaginatedLabsResponse
 from app.services import lab_service
 from app.api.dependencies import get_db, RoleChecker
 from app.models.user import User, UserRole
@@ -31,19 +31,22 @@ def create_lab(
     return db_lab
 
 
-@router.get("/", response_model=List[Lab])
+@router.get("/", response_model=PaginatedLabsResponse)
 def read_labs(
-    skip: int = 0,
-    limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: User = Depends(admin_permission),
+    skip: int = 0,
+    limit: int = 10,
+    search: Optional[str] = None,
+    school_id: Optional[int] = None,
+    current_user: User = Depends(RoleChecker([UserRole.admin, UserRole.sub_admin])),
 ):
     """
-    Retrieve a list of all labs.
-    - **Permissions**: admin, sub_admin
+    Retrieve all labs with pagination, search, and filtering by school.
     """
-    labs = lab_service.get_labs(db, skip=skip, limit=limit)
-    return labs
+    labs, total = lab_service.get_all_labs(
+        db, skip=skip, limit=limit, search=search, school_id=school_id
+    )
+    return {"labs": labs, "total": total}
 
 
 @router.get("/{lab_id}", response_model=Lab)

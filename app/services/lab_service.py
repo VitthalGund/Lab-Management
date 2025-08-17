@@ -15,6 +15,24 @@ def get_lab(db: Session, lab_id: int) -> Optional[Lab]:
     )
 
 
+def get_all_labs(
+    db: Session,
+    skip: int = 0,
+    limit: int = 10,
+    search: str = None,
+    school_id: int = None,
+):
+    query = db.query(Lab)
+    if search:
+        query = query.filter(Lab.name.ilike(f"%{search}%"))
+    if school_id:
+        query = query.filter(Lab.school_id == school_id)
+
+    total = query.count()
+    labs = query.offset(skip).limit(limit).all()
+    return labs, total
+
+
 def get_labs(db: Session, skip: int = 0, limit: int = 100) -> List[Lab]:
     """
     Retrieves a list of labs with pagination, including related school data.

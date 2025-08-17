@@ -44,7 +44,9 @@ class EnrollmentCohort(Base):
     teachers_assigned = relationship(
         "CohortTeacher", back_populates="cohort", cascade="all, delete-orphan"
     )
-    projects = relationship("Project", back_populates="cohort")
+    projects = relationship(
+        "Project", back_populates="cohort", cascade="all, delete-orphan"
+    )
 
 
 class StudentEnrollment(Base):

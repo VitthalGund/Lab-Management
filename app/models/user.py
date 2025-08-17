@@ -84,7 +84,7 @@ class TeacherProfile(Base):
     date_of_joining = Column(Date, nullable=True)
 
     user = relationship("User", back_populates="teacher_profile")
-    lab = relationship("Lab", back_populates="teachers")
+    lab = relationship("Lab", back_populates="teacher_profiles")
 
 
 class TeacherSkill(Base):
