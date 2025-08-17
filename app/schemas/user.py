@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from app.models.user import UserRole
 
 
@@ -50,3 +50,8 @@ class UserUpdate(BaseModel):
     mobile_number: Optional[str] = None
     email: Optional[EmailStr] = None
     role: Optional[UserRole] = None
+
+
+class PaginatedUsersResponse(BaseModel):
+    users: List[User]
+    total: int

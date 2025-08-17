@@ -8,6 +8,7 @@ from app.schemas.user import (
     UserPasswordChange,
     AdminPasswordReset,
     UserUpdate,
+    PaginatedUsersResponse,
 )
 from app.services import user_service
 from app.api.dependencies import get_db, get_current_user, RoleChecker
@@ -189,17 +190,19 @@ def delete_a_user(
     return deleted_user
 
 
-@router.get("/search/", response_model=List[UserSchema])
+@router.get("/search/", response_model=PaginatedUsersResponse)
 def search_for_users(
     role: Optional[UserRole] = None,
     school_id: Optional[int] = None,
     lab_id: Optional[int] = None,
+    name: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 10,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Search for users with advanced filters.
-    Permissions are checked based on the current user's role.
+    Search for users with advanced filters and pagination.
     """
     query = db.query(User).options(
         joinedload(User.teacher_profile), joinedload(User.student_profile)
@@ -207,6 +210,10 @@ def search_for_users(
 
     if role:
         query = query.filter(User.role == role)
+
+    if name:
+        query = query.filter(User.name.ilike(f"%{name}%"))
+
     if lab_id:
         if role in [UserRole.teacher, UserRole.lab_head]:
             query = query.join(TeacherProfile).filter(TeacherProfile.lab_id == lab_id)
@@ -240,15 +247,20 @@ def search_for_users(
                 status_code=403, detail="You are not assigned to a lab."
             )
 
-        if role in [UserRole.teacher, UserRole.lab_head]:
-            query = query.join(TeacherProfile).filter(
-                TeacherProfile.lab_id == user_lab_id
-            )
-        elif role == UserRole.student:
+        if role in [UserRole.teacher, UserRole.lab_head, UserRole.student]:
             query = (
-                query.join(StudentEnrollment)
+                query.join(TeacherProfile).filter(TeacherProfile.lab_id == user_lab_id)
+                if role != UserRole.student
+                else query.join(StudentEnrollment)
                 .join(EnrollmentCohort)
                 .filter(EnrollmentCohort.lab_id == user_lab_id)
             )
+        else:
+            raise HTTPException(
+                status_code=403, detail="You do not have permission to view this role."
+            )
 
-    return query.distinct(User.id).all()
+    total = query.distinct(User.id).count()
+    users = query.distinct(User.id).offset(skip).limit(limit).all()
+
+    return {"users": users, "total": total}
