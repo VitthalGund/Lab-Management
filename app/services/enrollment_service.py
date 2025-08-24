@@ -6,12 +6,25 @@ from app.schemas.enrollment import EnrollmentCohortCreate, EnrollmentCohortUpdat
 from app.models.enrollment import EnrollmentCohort, StudentEnrollment, CohortTeacher
 
 
+def generate_cohort_name(cohort_data: EnrollmentCohortCreate) -> str:
+    """Generates a standardized cohort name."""
+    name_parts = [
+        cohort_data.academic_year.split("-")[0],
+        cohort_data.section,
+        f"{cohort_data.standard}th std",
+    ]
+    if cohort_data.specialization:
+        name_parts.append(cohort_data.specialization)
+    return ", ".join(name_parts)
+
+
 def create_cohort_in_lab(
     db: Session, cohort_data: EnrollmentCohortCreate, lab_id: int, creator_id: int
 ) -> EnrollmentCohort:
     """
     Creates a new EnrollmentCohort in the database.
     """
+    cohort_data.name = generate_cohort_name(cohort_data)
     db_cohort = EnrollmentCohort(
         **cohort_data.dict(), lab_id=lab_id, created_by_user_id=creator_id
     )

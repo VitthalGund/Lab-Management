@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware  # Import the CORS middleware
+from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.api import api_router
 
 app = FastAPI(title="Lab Management System API", openapi_url="/api/v1/openapi.json")
